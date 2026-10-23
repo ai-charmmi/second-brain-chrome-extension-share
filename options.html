@@ -1,7 +1,13 @@
 <!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><title>送去第二大腦 設定</title>
 <style>body{font:15px system-ui;max-width:520px;margin:40px auto;padding:0 16px}label{display:block;margin:16px 0 4px;font-weight:600}input{width:100%;padding:8px;box-sizing:border-box}button{margin-top:16px;padding:8px 18px}#msg{margin-top:12px}</style></head>
 <body><h2>送去第二大腦 設定</h2>
-<label for="base">大腦網址</label><input id="base" placeholder="https://你的大腦網址（例如 https://xxx.workers.dev）">
+<label for="mode">送去邊度</label><select id="mode"><option value="brain">我嘅第二大腦（自備後端）</option><option value="obsidian">Obsidian（本機筆記庫）</option></select>
+<div id="brainBox"><label for="base">大腦網址</label><input id="base" placeholder="https://你的大腦網址（例如 https://xxx.workers.dev）">
 <label for="token">DASHBOARD_TOKEN</label><input id="token" type="password" autocomplete="off">
+</div>
+<div id="obsBox" hidden><p style="color:#555">需要 Obsidian 安裝並啟用「Local REST API」社群插件，並喺插件設定開啟 HTTP（27123）。</p>
+<label for="obsKey">Obsidian API Key</label><input id="obsKey" type="password" autocomplete="off">
+<label for="obsUrl">Obsidian 位址</label><input id="obsUrl" placeholder="http://127.0.0.1:27123">
+<label for="obsFolder">存入資料夾</label><input id="obsFolder" placeholder="Inbox/網頁收藏"></div>
 <div><button id="save">儲存</button> <button id="test">儲存並測試連線</button></div><div id="msg"></div>
 <script src="options.js"></script></body></html>

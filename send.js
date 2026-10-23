@@ -69,7 +69,58 @@ async function findExisting(base, token, url) {
   }
 }
 
+const OBS_DEFAULT_URL = "http://127.0.0.1:27123";
+const OBS_DEFAULT_FOLDER = "Inbox/網頁收藏";
+
+function hash6(s) {
+  let h = 5381;
+  for (const c of s) h = ((h * 33) ^ c.charCodeAt(0)) >>> 0;
+  return h.toString(36).slice(0, 6).padStart(6, "0");
+}
+
+function sgtStamp() {
+  const d = new Date(Date.now() + 8 * 3600000).toISOString();
+  return `${d.slice(0, 10)} ${d.slice(11, 16)}`;
+}
+
+export function buildObsidianNote({ url, title, selection }) {
+  const t = title && !GENERIC_TITLES.test(title.trim()) ? title.trim() : "";
+  const lines = ["---", `source: ${url}`, `saved: ${sgtStamp()} (SGT)`, "tags: [inbox, web-clip]", "---", `# ${t || url}`, "", url];
+  if (selection && selection.trim()) lines.push("", ...selection.trim().slice(0, 4000).split("\n").map((l) => `> ${l}`));
+  return lines.join("\n") + "\n";
+}
+
+async function sendToObsidian(input, cfg) {
+  const base = (cfg.obsUrl || OBS_DEFAULT_URL).trim().replace(/\/+$/, "");
+  const folder = (cfg.obsFolder || OBS_DEFAULT_FOLDER).trim().replace(/^\/+|\/+$/g, "");
+  if (!cfg.obsKey) return { ok: false, kind: "token", message: "未設定 Obsidian API Key：請喺設定頁填 Local REST API 嘅 key" };
+  if (!/^https?:\/\//i.test(input.url || "")) return { ok: false, kind: "url", message: "呢頁唔係一般網址，無法送出" };
+  const key = normalizeUrl(input.url);
+  const { sentUrls } = await readCache();
+  if (sentUrls[key]?.obs) return { ok: true, duplicate: true, message: `已喺 Obsidian（重複，未再加入）：${sentUrls[key].title || sentUrls[key].path}`, path: sentUrls[key].path };
+  const slug = (input.title && !GENERIC_TITLES.test(input.title.trim()) ? input.title : new URL(input.url).hostname).replace(/[\\/:*?"<>|#^\[\]\n\r]+/g, " ").trim().slice(0, 60);
+  const path = `${folder}/${slug || "clip"}-${hash6(key)}.md`;
+  const endpoint = `${base}/vault/${path.split("/").map(encodeURIComponent).join("/")}`;
+  const auth = { Authorization: `Bearer ${cfg.obsKey}` };
+  try {
+    const head = await fetch(endpoint, { headers: auth });
+    if (head.status === 401 || head.status === 403) return { ok: false, kind: "token", message: "Obsidian API Key 錯誤：請喺設定頁重新填" };
+    if (head.ok) return { ok: true, duplicate: true, message: `已喺 Obsidian（重複，未再加入）：${path}`, path };
+    const res = await fetch(endpoint, { method: "PUT", headers: { ...auth, "Content-Type": "text/markdown" }, body: buildObsidianNote(input) });
+    if (res.status === 401 || res.status === 403) return { ok: false, kind: "token", message: "Obsidian API Key 錯誤：請喺設定頁重新填" };
+    if (!res.ok) return { ok: false, kind: "server", message: `Obsidian 回應錯誤（${res.status}）` };
+  } catch {
+    return { ok: false, kind: "network", message: "連唔到 Obsidian：請確認 Obsidian 已開、Local REST API 插件已啟用（HTTP 27123）" };
+  }
+  await rememberSent(input.url, { title: input.title, path });
+  const c = await chrome.storage.local.get("sentUrls");
+  if (c.sentUrls?.[key]) { c.sentUrls[key].obs = true; await chrome.storage.local.set({ sentUrls: c.sentUrls }); }
+  return { ok: true, message: `已存入 Obsidian：${path}`, path };
+}
+
 export async function sendToBrain(input) {
+  const cfg = await chrome.storage.local.get(["mode", "obsKey", "obsUrl", "obsFolder"]);
+  if (cfg.mode === "obsidian") return sendToObsidian(input, cfg);
   const { token, base } = await getConfig();
   if (!base) return { ok: false, kind: "config", message: "未設定大腦網址：請喺 extension 設定頁填大腦網址" };
   if (!token) return { ok: false, kind: "token", message: "未設定 token：請喺 extension 設定頁填 DASHBOARD_TOKEN" };

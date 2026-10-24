@@ -27,6 +27,17 @@
       let hit = all.filter((el) => send.test(name(el)) || icon(el, /send-privately|send-small|paper-plane/i));
       if (!hit.length) hit = all.filter((el) => repost.test(name(el)) || icon(el, /repost/i));
       hit.forEach((el) => out.add(el));
+    } else if (B.site === "pin") {
+      document.querySelectorAll("button[aria-label], [role=button][aria-label]").forEach((el) => {
+        if (SHARE_LABEL.test((el.getAttribute("aria-label") || "").trim())) out.add(el);
+      });
+    } else if (B.site === "etsy") {
+      const fav = /favou?rite|收藏|我的最愛|加入最愛/i;
+      document.querySelectorAll("button, [role=button], a[aria-label]").forEach((el) => {
+        const label = (el.getAttribute("aria-label") || "").trim();
+        const hit = el.matches("[data-favorite-button], [data-favorite-listing-button], [data-fav-button], .favorite-listing-button") || (label.length <= 60 && fav.test(label) && !/shop|store|店|search|搜尋|alert/i.test(label));
+        if (hit && !el.closest(".brain-post-btn")) out.add(el);
+      });
     } else if (B.site === "x" || B.site === "yt" || B.site === "tt" || B.site === "dy" || B.site === "xhs") {
       document.querySelectorAll('button[aria-label], [role=button][aria-label], [data-e2e="share-icon"], [data-e2e="browse-share"], [data-e2e="video-player-share"]' + (B.site === "xhs" ? ', .share-wrapper, [class*="share-icon"]' : "")).forEach((el) => {
         const label = (el.getAttribute("aria-label") || "").trim();
@@ -47,7 +58,14 @@
   const pageScoped = () => isReelPage() || B.site === "yt" || (B.site === "xhs" && !!B.currentPageLink() && !!document.querySelector(".note-container, #noteContainer")) || (B.site === "dy" && !!B.currentPageLink() && !document.querySelector("[data-e2e-vid]"));
   const verticalOk = () => isReelPage() || B.site === "tt" || B.site === "dy" || (B.site === "yt" && /^\/shorts\//.test(location.pathname));
 
+  const CARD = '[data-test-id="pin"], [data-test-id="pinWrapper"], [data-test-id="pin-visual-wrapper"], [role=listitem], [data-listing-id], .v2-listing-card, li.wt-list-unstyled';
+  const cardSite = () => B.site === "pin" || B.site === "etsy";
+
   function containerOf(el) {
+    if (cardSite()) {
+      const card = el.closest(CARD);
+      return (card && B.postLinkIn(card) && card) || (B.currentPageLink() ? document.body : null);
+    }
     if (pageScoped()) return document.body;
     const article = el.closest("[role=article], article");
     if (article) return article;
@@ -187,16 +205,25 @@
   function scan() {
     try {
       for (const share of shareButtons()) {
-        const item = rowItem(share);
+        let item = rowItem(share), overlay = false;
+        if (!item && cardSite() && share.offsetParent && share.offsetWidth) { item = share; overlay = true; }
         if (!item || item.nextElementSibling?.classList.contains("brain-post-btn")) continue;
         const container = containerOf(share);
         const li = B.site === "li";
-        const linkOf = () => (pageScoped() ? B.currentPageLink() : (container && B.postLinkIn(container)) || (li && liAfter(share)) || B.currentPageLink());
+        const linkOf = () => (cardSite() ? (container === document.body ? B.currentPageLink() : container && B.postLinkIn(container)) : pageScoped() ? B.currentPageLink() : (container && B.postLinkIn(container)) || (li && liAfter(share)) || B.currentPageLink());
         if ((!container && !li) || !linkOf()) {
           if (li && liEngagementRow(share) && liMenuButton(share)) item.after(makeIcon(share, async () => (!pageScoped() && liAfter(share)) || (await liViaMenu(share)) || B.currentPageLink()));
           continue;
         }
-        item.after(makeIcon(share, linkOf));
+        const icon = makeIcon(share, linkOf);
+        if (overlay) {
+          const d = Math.round(parseFloat(icon.firstChild.getAttribute("width"))) + 16;
+          icon.style.position = "absolute";
+          icon.style.zIndex = "5";
+          icon.style.left = (B.site === "pin" ? share.offsetLeft - d - 4 : share.offsetLeft + Math.round((share.offsetWidth - d) / 2)) + "px";
+          icon.style.top = (B.site === "pin" ? share.offsetTop + Math.round((share.offsetHeight - d) / 2) : share.offsetTop + share.offsetHeight + 6) + "px";
+        }
+        item.after(icon);
       }
     } catch (e) { console.debug("[brain]", e); }
   }

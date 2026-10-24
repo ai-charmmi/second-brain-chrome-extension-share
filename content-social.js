@@ -26,7 +26,7 @@
     btn.disabled = false;
   });
 
-  const syncBtn = () => { btn.style.display = (B.site === "fb" && /^\/reel\//.test(location.pathname)) || ((B.site === "x" || B.site === "tt" || B.site === "dy" || B.site === "xhs" || (B.site === "yt" && /^\/shorts\//.test(location.pathname))) && document.querySelector(".brain-post-btn")) ? "none" : ""; };
+  const syncBtn = () => { btn.style.display = (B.site === "fb" && /^\/reel\//.test(location.pathname)) || ((B.site === "x" || B.site === "tt" || B.site === "dy" || B.site === "xhs" || B.site === "pin" || B.site === "etsy" || (B.site === "yt" && /^\/shorts\//.test(location.pathname))) && document.querySelector(".brain-post-btn")) ? "none" : ""; };
   syncBtn();
   setInterval(syncBtn, 1000);
   document.body.append(btn);

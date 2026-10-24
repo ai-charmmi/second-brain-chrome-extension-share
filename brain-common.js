@@ -1,7 +1,7 @@
 (() => {
   if (globalThis.Brain) return;
   const host = location.hostname;
-  const SITE_HOSTS = { ig: /(^|\.)instagram\.com$/, fb: /(^|\.)facebook\.com$/, th: /(^|\.)threads\.(com|net)$/, x: /(^|\.)(x|twitter)\.com$/, yt: /(^|\.)youtube\.com$/, li: /(^|\.)linkedin\.com$/, tt: /(^|\.)tiktok\.com$/, dy: /(^|\.)douyin\.com$/, xhs: /(^|\.)(xiaohongshu\.(com|hk)|rednote\.com)$/ };
+  const SITE_HOSTS = { ig: /(^|\.)instagram\.com$/, fb: /(^|\.)facebook\.com$/, th: /(^|\.)threads\.(com|net)$/, x: /(^|\.)(x|twitter)\.com$/, yt: /(^|\.)youtube\.com$/, li: /(^|\.)linkedin\.com$/, tt: /(^|\.)tiktok\.com$/, dy: /(^|\.)douyin\.com$/, xhs: /(^|\.)(xiaohongshu\.(com|hk)|rednote\.com)$/, pin: /(^|\.)pinterest\.(com|ca|co\.uk|com\.au|de|fr|jp|es|it)$/, etsy: /(^|\.)etsy\.com$/ };
   const site = Object.keys(SITE_HOSTS).find((k) => SITE_HOSTS[k].test(host)) || "";
   const POST_LINK = {
     ig: /^\/(?:[^/]+\/)?(?:p|reel|tv)\/[^/]+/,
@@ -12,6 +12,8 @@
     li: /^\/(?:feed\/update\/urn:li:|posts\/)/,
     tt: /^\/@[^/]+\/(?:video|photo)\/\d+/,
     dy: /^\/(?:video|note)\/\d+/,
+    pin: /^\/pin\/\d+/,
+    etsy: /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?listing\/\d+/i,
     xhs: /^\/(?:explore|discovery\/item|user\/profile\/[^/]+)\/[0-9a-f]{16,}/i,
   }[site];
   const siteHost = (h) => SITE_HOSTS[site]?.test(h);
@@ -38,6 +40,8 @@
   function clean(u) {
     u.hash = "";
     if (site === "x") { const m = u.pathname.match(/^\/(?:[^/]+|i)\/status\/\d+/); u.pathname = m ? m[0] : u.pathname; u.search = ""; return u.toString(); }
+    if (site === "pin") { const m = u.pathname.match(/^\/pin\/(\d+)/); u.pathname = m ? `/pin/${m[1]}/` : u.pathname; u.search = ""; return u.toString(); }
+    if (site === "etsy") { u.search = ""; u.pathname = u.pathname.replace(/^\/[a-z]{2}(?:-[a-z]{2})?(?=\/listing\/)/i, ""); return u.toString(); }
     if (site === "yt") { const v = u.searchParams.get("v"); u.search = v ? `?v=${v}` : ""; return u.toString(); }
     if (site === "xhs") { [...u.searchParams.keys()].forEach((k) => !/^xsec_(token|source)$/.test(k) && u.searchParams.delete(k)); return u.toString(); }
     if (site === "fb") ["__cft__[0]", "__tn__", "comment_id", "reply_comment_id", "ref", "mibextid"].forEach((k) => u.searchParams.delete(k));
@@ -92,6 +96,10 @@
       try { u = new URL(a.href, location.href); } catch { continue; }
       if (!siteHost(u.hostname)) continue;
       if (isPostPath(u.pathname + u.search)) return clean(u);
+    }
+    if (site === "etsy") {
+      const id = [root, ...root.querySelectorAll("[data-listing-id]")].map((e) => e.getAttribute?.("data-listing-id")).find((v) => /^\d{6,}$/.test(v || ""));
+      if (id) return `https://www.etsy.com/listing/${id}`;
     }
     return null;
   }

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "送去大腦",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "一撳將網頁／社交帖文送去你自己嘅第二大腦 INBOX",
   "icons": {
     "16": "icons/icon16.png",
@@ -51,7 +51,17 @@
         "https://*.douyin.com/*",
         "https://*.xiaohongshu.com/*",
         "https://*.rednote.com/*",
-        "https://*.xiaohongshu.hk/*"
+        "https://*.xiaohongshu.hk/*",
+        "https://*.pinterest.com/*",
+        "https://*.pinterest.ca/*",
+        "https://*.pinterest.co.uk/*",
+        "https://*.pinterest.com.au/*",
+        "https://*.pinterest.de/*",
+        "https://*.pinterest.fr/*",
+        "https://*.pinterest.jp/*",
+        "https://*.pinterest.es/*",
+        "https://*.pinterest.it/*",
+        "https://*.etsy.com/*"
       ],
       "js": [
         "brain-common.js",

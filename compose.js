@@ -61,18 +61,25 @@
   }
 
   function open({ url, title = "", selection = "", root = null } = {}) {
-    if (openHost) openHost.remove();
+    if (openHost) {
+      if (openHost._url === url) { openHost._expand?.(); return; }
+      openHost.remove();
+    }
     let prefill = String(selection || "").trim();
     if (!prefill) prefill = scrape(root || nearestPost(url));
     const host = document.createElement("div");
     host.id = "brain-compose-host";
-    host.style.cssText = "position:fixed;inset:0;z-index:2147483647";
+    host.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;overflow:visible;z-index:2147483647";
     const sh = host.attachShadow({ mode: "open" });
     sh.innerHTML = `<style>
       *{box-sizing:border-box}
-      .bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font:14px/1.45 system-ui,sans-serif}
-      .box{width:min(440px,92vw);max-height:90vh;overflow:auto;background:#fff;color:#111;border-radius:14px;padding:16px;box-shadow:0 12px 40px rgba(0,0,0,.4)}
-      h3{margin:0 0 8px;font-size:16px}
+      .box{position:fixed;right:20px;bottom:20px;width:min(380px,92vw);max-height:90vh;overflow:auto;background:#fff;color:#111;border-radius:14px;padding:0 14px 14px;box-shadow:0 8px 30px rgba(0,0,0,.35);border:1px solid #ddd;font:14px/1.45 system-ui,sans-serif}
+      .bar{display:flex;align-items:center;gap:6px;padding:10px 0 8px;cursor:move;user-select:none;touch-action:none}
+      h3{margin:0;font-size:15px;flex:1}
+      .bar button{border:0;background:#eee;color:#111;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1}
+      .mini{display:none;position:fixed;right:20px;bottom:20px;border:0;border-radius:999px;padding:10px 16px;background:#4f46e5;color:#fff;font:600 14px system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35)}
+      .mini .dot{display:none;margin-left:6px}
+      :host(.min) .box{display:none}:host(.min) .mini{display:block}
       .url{font-size:12px;color:#4f46e5;word-break:break-all;background:#eef2ff;border-radius:8px;padding:6px 8px;margin-bottom:10px}
       textarea{width:100%;height:110px;resize:vertical;border:1px solid #ccc;border-radius:8px;padding:8px;font:inherit;color:#111;background:#fff}
       .drop{margin-top:10px;border:2px dashed #bbb;border-radius:8px;padding:12px;text-align:center;color:#666;cursor:pointer;font-size:13px}
@@ -84,15 +91,16 @@
       .row button{padding:8px 18px;border-radius:8px;border:1px solid #ccc;background:#f5f5f5;color:#111;font:inherit;cursor:pointer}
       .row .go{background:#4f46e5;border-color:#4f46e5;color:#fff;font-weight:600}.row button:disabled{opacity:.5;cursor:default}
     </style>
-    <div class="bg"><div class="box" role="dialog" aria-label="送去第二大腦">
-      <h3>🧠 送去第二大腦</h3><div class="url"></div>
+    <button class="mini" type="button">🧠 送去第二大腦（撳展開）</button>
+    <div class="box" role="dialog" aria-label="送去第二大腦">
+      <div class="bar"><h3>🧠 送去第二大腦</h3><button class="min" type="button" title="縮細">–</button></div><div class="url"></div>
       <textarea placeholder="想補充嘅文字（可留空）"></textarea>
       <div class="drop">貼圖（Ctrl+V）、拖入圖片，或撳呢度揀圖</div>
       <div class="pv"><img alt=""><button type="button" title="移除圖片">✕</button></div>
       <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
       <div class="msg"></div>
       <div class="row"><button class="cancel" type="button">取消</button><button class="go" type="button">送出</button></div>
-    </div></div>`;
+    </div>`;
     const $ = (s) => sh.querySelector(s);
     $(".url").textContent = url;
     const ta = $("textarea"), drop = $(".drop"), pv = $(".pv"), img = $(".pv img"), fileIn = $("input"), msg = $(".msg"), go = $(".go"), cancel = $(".cancel");
@@ -121,7 +129,25 @@
     fileIn.onchange = () => setImage(fileIn.files[0]);
     $(".pv button").onclick = clearImage;
     cancel.onclick = close;
-    $(".bg").addEventListener("mousedown", (e) => { if (e.target === e.currentTarget) close(); });
+    const box = $(".box"), bar = $(".bar");
+    const collapse = () => { host.classList.add("min"); };
+    const expand = () => { host.classList.remove("min"); ta.focus(); };
+    host._expand = expand; host._url = url;
+    $(".min").onclick = collapse;
+    $(".mini").onclick = expand;
+    bar.addEventListener("pointerdown", (e) => {
+      if (e.target.closest("button")) return;
+      const r = box.getBoundingClientRect();
+      const dx = e.clientX - r.left, dy = e.clientY - r.top;
+      box.style.right = "auto"; box.style.bottom = "auto"; box.style.left = r.left + "px"; box.style.top = r.top + "px";
+      bar.setPointerCapture(e.pointerId);
+      const mv = (m) => {
+        box.style.left = Math.max(0, Math.min(innerWidth - 60, m.clientX - dx)) + "px";
+        box.style.top = Math.max(0, Math.min(innerHeight - 40, m.clientY - dy)) + "px";
+      };
+      const up = () => { bar.removeEventListener("pointermove", mv); bar.removeEventListener("pointerup", up); };
+      bar.addEventListener("pointermove", mv); bar.addEventListener("pointerup", up);
+    });
     sh.addEventListener("paste", (e) => {
       const f = [...(e.clipboardData?.items || [])].find((i) => i.kind === "file" && i.type.startsWith("image/"));
       if (f) { e.preventDefault(); setImage(f.getAsFile()); }
@@ -135,7 +161,7 @@
     });
     for (const t of ["keydown", "keyup", "keypress"]) host.addEventListener(t, (e) => e.stopPropagation());
     host.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape") collapse();
       else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) go.click();
     });
 

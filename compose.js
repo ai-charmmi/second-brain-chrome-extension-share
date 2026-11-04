@@ -33,6 +33,54 @@
     } catch { return ""; }
   }
 
+  const SOCIAL = /(^|\.)(x|twitter|facebook|instagram|threads|linkedin|tiktok|douyin|xiaohongshu|rednote|pinterest|etsy)\.(com|net|hk)$/;
+  const meta = (k) => document.querySelector(`meta[property="${k}"],meta[name="${k}"],meta[itemprop="${k}"]`)?.getAttribute("content") || "";
+
+  function ldArticle() {
+    for (const s of document.querySelectorAll('script[type="application/ld+json"]')) {
+      try {
+        const walk = (n) => {
+          if (!n) return null;
+          if (Array.isArray(n)) { for (const x of n) { const r = walk(x); if (r) return r; } return null; }
+          const t = [].concat(n["@type"] || []).join(",");
+          if (/(News|Blog)?Article|Report/.test(t) && n.headline) return n;
+          return walk(n["@graph"]);
+        };
+        const hit = walk(JSON.parse(s.textContent));
+        if (hit) return hit;
+      } catch {}
+    }
+    return null;
+  }
+  const names = (v) => [].concat(v || []).map((a) => (typeof a === "string" ? a : a?.name || "")).filter(Boolean).join("、");
+
+  function scrapePage(url) {
+    try {
+      const bare = (u) => { try { const x = new URL(u); return x.hostname + x.pathname.replace(/\/+$/, "") + (/youtube/.test(x.hostname) ? x.search.match(/v=[^&]+/)?.[0] || "" : ""); } catch { return ""; } };
+      if (bare(url) !== bare(location.href)) return "";
+      const host = location.hostname;
+      if (/(^|\.)youtube\.com$/.test(host)) {
+        const title = clip(document.querySelector("h1.ytd-watch-metadata, ytd-watch-metadata h1, h1 yt-formatted-string")?.innerText || meta("og:title"), 200);
+        const ch = clip(document.querySelector("ytd-video-owner-renderer ytd-channel-name a, #owner ytd-channel-name a, ytd-channel-name a")?.innerText || document.querySelector('[itemprop="author"] [itemprop="name"]')?.getAttribute("content") || "", 100);
+        return title ? clip(`標題：${title}` + (ch ? `\n頻道：${ch}` : ""), 1500) : "";
+      }
+      if (SOCIAL.test(host)) return "";
+      const art = ldArticle();
+      const title = clip(art?.headline || meta("og:title") || document.title, 200);
+      const desc = clip(art?.description || meta("og:description") || meta("description") || meta("twitter:description"), 600);
+      const isNews = !!art || meta("og:type") === "article";
+      const author = clip(names(art?.author) || meta("author") || meta("article:author") || meta("byline"), 100);
+      const date = clip(art?.datePublished || meta("article:published_time") || meta("datePublished"), 40);
+      if (!title && !desc) return "";
+      const lines = [];
+      if (title) lines.push(`標題：${title}`);
+      if (author && (isNews || !/^https?:/.test(author))) lines.push(`作者：${author}`);
+      if (isNews && date) lines.push(`日期：${date.slice(0, 10)}`);
+      if (desc && desc !== title) lines.push(desc);
+      return clip(lines.join("\n"), 1500);
+    } catch { return ""; }
+  }
+
   function nearestPost(url) {
     const posts = [...document.querySelectorAll("article, [role=article]")];
     if (!posts.length) return null;
@@ -67,6 +115,7 @@
     }
     let prefill = String(selection || "").trim();
     if (!prefill) prefill = scrape(root || nearestPost(url));
+    if (!prefill) prefill = scrapePage(url);
     const host = document.createElement("div");
     host.id = "brain-compose-host";
     host.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;overflow:visible;z-index:2147483647";

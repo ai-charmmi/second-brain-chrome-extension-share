@@ -28,21 +28,36 @@ async function selectionOf(tabId) {
   } catch { return ""; }
 }
 
+async function compose(tabId, args) {
+  if (tabId == null) return false;
+  const ping = () => chrome.tabs.sendMessage(tabId, { type: "brain-compose", ...args });
+  try { await ping(); return true; } catch {}
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["compose.js"] });
+    await ping();
+    return true;
+  } catch { return false; }
+}
+
 chrome.action.onClicked.addListener(async (tab) => {
   const selection = await selectionOf(tab.id);
-  notify(await sendToBrain({ url: tab.url, title: tab.title, selection }), tab.id);
+  const args = { url: tab.url, title: tab.title, selection };
+  if (/^https?:\/\//i.test(tab.url || "") && await compose(tab.id, args)) return;
+  notify(await sendToBrain(args), tab.id);
 });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== MENU_ID) return;
   const url = info.linkUrl || info.pageUrl || tab?.url;
   const title = info.linkUrl ? "" : tab?.title;
-  notify(await sendToBrain({ url, title, selection: info.selectionText || "" }), tab?.id);
+  const args = { url, title, selection: info.selectionText || "" };
+  if (/^https?:\/\//i.test(url || "") && await compose(tab?.id, args)) return;
+  notify(await sendToBrain(args), tab?.id);
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type !== "send") return;
-  sendToBrain({ url: msg.url, title: msg.title, selection: msg.selection }).then((result) => {
+  sendToBrain({ url: msg.url, title: msg.title, selection: msg.selection, imageBase64: msg.imageBase64, imageMimeType: msg.imageMimeType, imageName: msg.imageName }).then((result) => {
     notify(result, null);
     sendResponse(result);
   });

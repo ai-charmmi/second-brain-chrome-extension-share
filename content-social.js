@@ -21,8 +21,10 @@
 
   btn.addEventListener("click", async () => {
     const url = B.currentPageLink() || postLinkFromViewport() || location.href;
+    const args = { url, title: document.title, selection: String(getSelection() || "") };
+    if (globalThis.BrainCompose) return BrainCompose.open(args);
     btn.disabled = true;
-    await B.send({ url, title: document.title, selection: String(getSelection() || "") });
+    await B.send(args);
     btn.disabled = false;
   });
 

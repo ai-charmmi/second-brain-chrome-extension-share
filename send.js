@@ -7,8 +7,9 @@ export async function getConfig() {
 
 const GENERIC_TITLES = /^(facebook|instagram|threads|x|linkedin|tiktok|douyin|抖音|小红书|小紅書|xiaohongshu|youtube|\(\d+\)\s*(facebook|instagram|threads|x|linkedin|tiktok|douyin|抖音|youtube))$/i;
 
-export function buildPayload({ url, title, selection }) {
+export function buildPayload({ url, title, selection, imageBase64, imageMimeType, imageName }) {
   const payload = { url };
+  if (imageBase64) Object.assign(payload, { imageBase64, imageMimeType, imageName });
   const parts = [];
   if (title && !GENERIC_TITLES.test(title.trim())) parts.push(title.trim());
   if (selection && selection.trim()) parts.push(selection.trim());
@@ -83,10 +84,11 @@ function sgtStamp() {
   return `${d.slice(0, 10)} ${d.slice(11, 16)}`;
 }
 
-export function buildObsidianNote({ url, title, selection }) {
+export function buildObsidianNote({ url, title, selection }, imageFile) {
   const t = title && !GENERIC_TITLES.test(title.trim()) ? title.trim() : "";
   const lines = ["---", `source: ${url}`, `saved: ${sgtStamp()} (SGT)`, "tags: [inbox, web-clip]", "---", `# ${t || url}`, "", url];
   if (selection && selection.trim()) lines.push("", ...selection.trim().slice(0, 4000).split("\n").map((l) => `> ${l}`));
+  if (imageFile) lines.push("", `![[${imageFile}]]`);
   return lines.join("\n") + "\n";
 }
 
@@ -106,7 +108,14 @@ async function sendToObsidian(input, cfg) {
     const head = await fetch(endpoint, { headers: auth });
     if (head.status === 401 || head.status === 403) return { ok: false, kind: "token", message: "Obsidian API Key 錯誤：請喺設定頁重新填" };
     if (head.ok) return { ok: true, duplicate: true, message: `已喺 Obsidian（重複，未再加入）：${path}`, path };
-    const res = await fetch(endpoint, { method: "PUT", headers: { ...auth, "Content-Type": "text/markdown" }, body: buildObsidianNote(input) });
+    let imageFile = "";
+    if (input.imageBase64) {
+      imageFile = `${hash6(key)}-${Date.now().toString(36)}.${(input.imageMimeType || "image/png").split("/")[1] || "png"}`;
+      const bytes = Uint8Array.from(atob(input.imageBase64), (c) => c.charCodeAt(0));
+      const ir = await fetch(`${base}/vault/${[...folder.split("/"), "attachments", imageFile].map(encodeURIComponent).join("/")}`, { method: "PUT", headers: { ...auth, "Content-Type": input.imageMimeType || "image/png" }, body: bytes });
+      if (!ir.ok) return { ok: false, kind: "server", message: `Obsidian 存圖失敗（${ir.status}）` };
+    }
+    const res = await fetch(endpoint, { method: "PUT", headers: { ...auth, "Content-Type": "text/markdown" }, body: buildObsidianNote(input, imageFile) });
     if (res.status === 401 || res.status === 403) return { ok: false, kind: "token", message: "Obsidian API Key 錯誤：請喺設定頁重新填" };
     if (!res.ok) return { ok: false, kind: "server", message: `Obsidian 回應錯誤（${res.status}）` };
   } catch {

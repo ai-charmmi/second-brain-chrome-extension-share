@@ -132,9 +132,9 @@
       const url = await getLink();
       if (!url) return B.show({ ok: false, message: "搵唔到呢條帖文嘅連結" + (B.site === "li" && liDebug ? `（${liDebug}）` : "") });
       busy = true;
-      wrap.style.opacity = ".5";
-      await B.send({ url, title: "", selection: "" });
-      wrap.style.opacity = "";
+      const root = wrap.closest("article, [role=article], [data-testid=tweet], [data-listing-id], [data-pin-id]");
+      if (globalThis.BrainCompose) BrainCompose.open({ url, title: "", selection: "", root });
+      else await B.send({ url, title: "", selection: "" });
       busy = false;
     };
     wrap.addEventListener("click", fire);

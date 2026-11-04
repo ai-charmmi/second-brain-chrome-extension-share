@@ -132,7 +132,12 @@
       const url = await getLink();
       if (!url) return B.show({ ok: false, message: "搵唔到呢條帖文嘅連結" + (B.site === "li" && liDebug ? `（${liDebug}）` : "") });
       busy = true;
-      const root = wrap.closest("article, [role=article], [data-testid=tweet], [data-listing-id], [data-pin-id]");
+      let root = wrap.closest("article, [role=article], [data-testid=tweet], [data-listing-id], [data-pin-id]");
+      if (!root && (B.site === "li" || B.site === "tt")) {
+        let n = wrap.parentElement;
+        while (n && n.parentElement && n.parentElement !== document.body && n.parentElement.querySelectorAll(".brain-post-btn").length <= 1) n = n.parentElement;
+        root = n;
+      }
       if (globalThis.BrainCompose) BrainCompose.open({ url, title: "", selection: "", root });
       else await B.send({ url, title: "", selection: "" });
       busy = false;

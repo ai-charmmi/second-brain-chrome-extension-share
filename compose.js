@@ -26,6 +26,17 @@
         author = clip(root.querySelector("a[href^='/@']")?.innerText.split("\n")[0], 100);
         const cand = [...root.querySelectorAll("span[dir=auto]")].map(txt).filter((t) => t.length > 8);
         body = cand.sort((a, b) => b.length - a.length)[0] || "";
+      } else if (/(^|\.)linkedin\.com$/.test(host)) {
+        const al = [...root.querySelectorAll('a[href*="/in/"], a[href*="/company/"], a[href*="/school/"]')].map((a) => clip((a.querySelector("span, div") || a).innerText.split("\n")[0], 100)).find((t) => t.length > 1);
+        author = al || "";
+        body = txt(root.querySelector('[data-testid="expandable-text-box"], .update-components-text, .feed-shared-update-v2__description, .feed-shared-text'));
+        if (!body) {
+          const cand = [...root.querySelectorAll("span[dir=ltr], p, span[dir=auto]")].map(txt).filter((t) => t.length > 20 && t !== author);
+          body = cand.sort((x, y) => y.length - x.length)[0] || "";
+        }
+      } else if (/(^|\.)tiktok\.com$/.test(host)) {
+        author = clip((root.querySelector('[data-e2e="video-author-uniqueid"], [data-e2e="browse-username"], [data-e2e="feed-author-name"]') || root.querySelector('a[href^="/@"]'))?.innerText.split("\n")[0], 100);
+        body = txt(root.querySelector('[data-e2e="video-desc"], [data-e2e="browse-video-desc"], [data-e2e="feed-video-desc"]'));
       } else return "";
       if (!body) return "";
       if (body.includes(author) && author) author = "";
@@ -64,7 +75,7 @@
         const ch = clip(document.querySelector("ytd-video-owner-renderer ytd-channel-name a, #owner ytd-channel-name a, ytd-channel-name a")?.innerText || document.querySelector('[itemprop="author"] [itemprop="name"]')?.getAttribute("content") || "", 100);
         return title ? clip(`標題：${title}` + (ch ? `\n頻道：${ch}` : ""), 1500) : "";
       }
-      if (SOCIAL.test(host)) return "";
+      if (SOCIAL.test(host) && !(/(^|\.)linkedin\.com$/.test(host) && /^\/pulse\//.test(location.pathname))) return "";
       const art = ldArticle();
       const title = clip(art?.headline || meta("og:title") || document.title, 200);
       const desc = clip(art?.description || meta("og:description") || meta("description") || meta("twitter:description"), 600);

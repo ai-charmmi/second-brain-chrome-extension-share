@@ -16,8 +16,9 @@
         author = clip(root.querySelector('[data-testid="User-Name"]')?.innerText.split("\n")[0], 100);
         body = [...root.querySelectorAll('[data-testid="tweetText"]')].map(txt)[0] || "";
       } else if (/(^|\.)facebook\.com$/.test(host)) {
-        author = clip(root.querySelector("h2 a, h3 a, h4 a, h2, h3")?.innerText.split("\n")[0], 100);
-        body = txt(root.querySelector('[data-ad-rendering-role="story_message"], [data-ad-preview="message"], [data-ad-comet-preview="message"]'));
+        const own = (sel) => [...root.querySelectorAll(sel)].find((e) => e.closest("article, [role=article]") === (root.matches("article, [role=article]") ? root : e.closest("article, [role=article]")));
+        author = clip(own("h2 a, h3 a, h4 a, h2, h3")?.innerText.split("\n")[0], 100);
+        body = txt(own('[data-ad-rendering-role="story_message"], [data-ad-preview="message"], [data-ad-comet-preview="message"]'));
       } else if (/(^|\.)instagram\.com$/.test(host)) {
         author = clip(root.querySelector("header a, h2 a, a[role=link][href^='/']")?.innerText.split("\n")[0], 100);
         const cand = [...root.querySelectorAll("h1, span[dir=auto]")].map(txt).filter((t) => t.length > 8);
@@ -99,6 +100,7 @@
     const want = bare(url);
     const hit = want && posts.find((p) => [...p.querySelectorAll("a[href]")].some((a) => bare(a.href) === want));
     if (hit) return hit;
+    if (/(^|\.)facebook\.com$/.test(location.hostname)) return null;
     const mid = innerHeight / 2;
     let best = null, bd = Infinity;
     for (const p of posts) {
@@ -108,6 +110,17 @@
       if (d < bd) { best = p; bd = d; }
     }
     return best;
+  }
+
+  function rootMatchesUrl(root, url) {
+    try {
+      if (!root || !/(^|\.)facebook\.com$/.test(location.hostname)) return true;
+      const key = (u) => { const x = new URL(u, location.href); const m = x.pathname.match(/\/(?:reel|videos|posts|permalink|photo|watch)\/([^/?#]+)/) || x.pathname.match(/\/([^/]+)\/?$/); return m ? m[1] : x.pathname; };
+      const want = key(url);
+      if (!want) return false;
+      return [...root.querySelectorAll("a[href]")].some((a) => { try { return key(a.href) === want; } catch { return false; } })
+        || (root.getAttribute?.("data-brain-url") || "") === url;
+    } catch { return false; }
   }
 
   function toBase64(blob) {
@@ -125,8 +138,14 @@
       openHost.remove();
     }
     let prefill = String(selection || "").trim();
-    if (!prefill) prefill = scrape(root || nearestPost(url));
-    if (!prefill) prefill = scrapePage(url);
+    let note = "";
+    if (!prefill) {
+      const r = root || nearestPost(url);
+      if (r && !rootMatchesUrl(r, url)) note = "未能自動抓取帖文文字（頁面內容同連結對唔上），請自行輸入";
+      else prefill = scrape(r);
+    }
+    if (!prefill && !note) prefill = scrapePage(url);
+    if (!prefill && !note && /(^|\.)facebook\.com$/.test(location.hostname)) note = "未能自動抓取帖文文字，請自行輸入";
     const host = document.createElement("div");
     host.id = "brain-compose-host";
     host.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;overflow:visible;z-index:2147483647";
@@ -166,6 +185,7 @@
     const ta = $("textarea"), drop = $(".drop"), pv = $(".pv"), img = $(".pv img"), fileIn = $("input"), msg = $(".msg"), go = $(".go"), cancel = $(".cancel");
     ta.value = prefill;
     let image = null;
+    if (note) msg.textContent = note;
 
     const say = (t, cls = "") => { msg.textContent = t; msg.className = "msg " + cls; };
     function setImage(file) {
@@ -260,5 +280,5 @@
       if (msg?.type === "brain-compose" && window.top === window) open({ url: msg.url, title: msg.title, selection: msg.selection });
     });
   }
-  globalThis.BrainCompose = { open, scrape };
+  globalThis.BrainCompose = { open, scrape, rootMatchesUrl };
 })();

@@ -3,6 +3,7 @@
   const MAX_IMG = 8 * 1024 * 1024;
   const OK_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
   let openHost = null;
+  let lastDiag = "";
 
   const clip = (s, n) => String(s || "").replace(/ /g, " ").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, n);
   const txt = (e) => clip(e?.innerText || e?.textContent || "", 1500);
@@ -129,22 +130,33 @@
         n = n.parentElement;
       }
       if (!best) return "";
-      const noise = /^(public|reels|see more|see more on facebook|see less|see translation|hide translation|see original|log in|follow|like|comment|share|more|查看更多|查看翻譯|隱藏翻譯|顯示原文|查看原文|收起|更多|\d[\d.,kKmM萬万]*)$/i;
-      const tail = /\s*(…|\.{2,}|⋯)*\s*(查看更多|See more|更多)\s*$/i;
+      const noise = /^(public|reels|see more|see more on facebook|see less|show less|show more|see translation|hide translation|see original|log in|follow|following|like|comment|reply|share|more|most relevant|newest|all comments|查看更多|查看翻譯|隱藏翻譯|顯示原文|查看原文|收起|更多|顯示更多|顯示較少|顯示更少|显示更多|显示较少|追蹤|已追蹤|追踪|已追踪|原始音訊|原始音频|最相關|最相关|回覆|回复|讚|赞|[.·．•・|\-–—♫♪]+|\d[\d.,kKmM萬万]*(\s*(個|个)?(留言|則留言|comments?))?)$/i;
+      const more = "查看更多|See more|更多|顯示更多|显示更多|顯示較少|顯示更少|显示较少|Show less|Show more|See less";
+      const tail = new RegExp("\\s*(…|\\.{2,}|⋯)*\\s*(" + more + ")\\s*$", "i");
+      const audio = /^[♫♪\s]*(.{1,60}?)\s*[·．•・]\s*(原始音訊|原始音频|Original audio)/i;
+      const stop = /^(最相關|最相关|Most relevant|Newest|All comments|Top comments|所有留言)$/i;
+      const nk = (x) => String(x).replace(/[\s\u200b-\u200f\u00a0\ufeff]/g, "");
       const clean = (text) => {
         const out = [];
         for (const raw of String(text).split("\n")) {
-          const l = raw.trim().replace(tail, "").trim();
-          if (l && !out.includes(l) && !noise.test(l)) out.push(l);
+          const t = raw.trim();
+          if (stop.test(t)) break;
+          const l = t.replace(tail, "").trim();
+          if (l && !out.some((o) => nk(o) === nk(l)) && !noise.test(nk(l)) && !noise.test(l)) out.push(l);
         }
         return out.filter((l) => !out.some((o) => o.length > l.length && o.startsWith(l)));
       };
+      const rawLines = String(best.innerText).split("\n").map((x) => x.trim()).filter(Boolean);
+      const am = rawLines.map((l) => l.match(audio)).find(Boolean);
+      lastDiag = "ancestor=" + best.tagName + "." + String(best.className).slice(0, 40) + " videos=" + vids.length + "\nRAW:\n" + rawLines.slice(0, 40).join("\n").slice(0, 1800);
       const lines = clean(best.innerText);
       const ai = lines.findIndex((l) => /^.{1,60}\s·\s/.test(l));
       let author = "", body;
-      if (ai >= 0) { author = lines[ai].split(" · ")[0].trim(); body = lines.filter((l, i) => i !== ai && l !== author); }
+      if (am) { author = am[1].trim(); body = lines.filter((l) => !audio.test(l) && nk(l) !== nk(author)); }
+      else if (ai >= 0) { author = lines[ai].split(" · ")[0].trim(); body = lines.filter((l, i) => i !== ai && nk(l) !== nk(author)); }
       else body = lines;
-      const truncated = /(…|\.{2,}|⋯)\s*(查看更多|See more|更多)\s*$/im.test(best.innerText);
+      lastDiag += "\nAUTHOR=" + author;
+      const truncated = new RegExp("(…|\\.{2,}|⋯)\\s*(" + more + ")\\s*$", "im").test(best.innerText);
       const first = body[0] ? body[0].replace(/\s+/g, " ") : "";
       const prefix = first.slice(0, 24);
       if (truncated && prefix.length >= 6) {
@@ -158,7 +170,7 @@
           if (t.length > full.length) full = t;
         }
         if (full) {
-          const fl = clean(full).filter((l) => l !== author && !/^.{1,60}\s·\s/.test(l));
+          const fl = clean(full).filter((l) => nk(l) !== nk(author) && !/^.{1,60}\s·\s/.test(l));
           if (fl.join("").length > body.join("").length) body = fl;
         }
       }
@@ -195,6 +207,7 @@
     }
     let prefill = String(selection || "").trim();
     let note = "";
+    lastDiag = "";
     if (!prefill) prefill = fbReelText(url);
     if (!prefill) {
       const r = root || nearestPost(url);
@@ -217,7 +230,7 @@
       .mini .dot{display:none;margin-left:6px}
       :host(.min) .box{display:none}:host(.min) .mini{display:block}
       .url{font-size:12px;color:#4f46e5;word-break:break-all;background:#eef2ff;border-radius:8px;padding:6px 8px;margin-bottom:10px}
-      textarea{width:100%;height:110px;resize:vertical;border:1px solid #ccc;border-radius:8px;padding:8px;font:inherit;color:#111;background:#fff}
+      textarea{width:100%;height:170px;resize:vertical;border:1px solid #ccc;border-radius:8px;padding:8px;font:inherit;color:#111;background:#fff}
       .drop{margin-top:10px;border:2px dashed #bbb;border-radius:8px;padding:12px;text-align:center;color:#666;cursor:pointer;font-size:13px}
       .drop.on{border-color:#4f46e5;background:#eef2ff}
       .pv{display:none;margin-top:10px;position:relative}.pv img{max-width:100%;max-height:180px;border-radius:8px;display:block}
@@ -235,11 +248,12 @@
       <div class="pv"><img alt=""><button type="button" title="移除圖片">✕</button></div>
       <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
       <div class="msg"></div>
-      <div class="row"><button class="cancel" type="button">取消</button><button class="go" type="button">送出</button></div>
+      <div class="row"><button class="diag" type="button" style="margin-right:auto;font-size:12px;padding:6px 10px;display:none" title="抓文唔準時撳呢個，貼俾 AI">複製診斷</button><button class="cancel" type="button">取消</button><button class="go" type="button">送出</button></div>
     </div>`;
     const $ = (s) => sh.querySelector(s);
     $(".url").textContent = url;
-    const ta = $("textarea"), drop = $(".drop"), pv = $(".pv"), img = $(".pv img"), fileIn = $("input"), msg = $(".msg"), go = $(".go"), cancel = $(".cancel");
+    const ta = $("textarea"), drop = $(".drop"), pv = $(".pv"), img = $(".pv img"), fileIn = $("input"), msg = $(".msg"), go = $(".go"), cancel = $(".cancel"), diag = $(".diag");
+    if (lastDiag && /(^|\.)facebook\.com$/.test(location.hostname)) { diag.style.display = ""; diag.onclick = async () => { const d = "v" + chrome.runtime.getManifest().version + " URL=" + location.href + " send=" + url + "\n" + lastDiag + "\nTEXTBOX:\n" + ta.value; try { await navigator.clipboard.writeText(d); say("已複製診斷，貼俾 AI", "ok"); } catch { say("複製失敗", "err"); } }; }
     ta.value = prefill;
     let image = null;
     if (note) msg.textContent = note;

@@ -112,6 +112,36 @@
     return best;
   }
 
+  function fbReelText(url) {
+    try {
+      if (!/(^|\.)facebook\.com$/.test(location.hostname)) return "";
+      const id = (u) => { try { const m = new URL(u, location.href).pathname.match(/\/reel\/(\d+)/); return m ? m[1] : ""; } catch { return ""; } };
+      const want = id(url);
+      if (!want || id(location.href) !== want) return "";
+      const vis = (e) => { const r = e.getBoundingClientRect(); const w = Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0)), h = Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0)); return w * h; };
+      const vids = [...document.querySelectorAll("video")].filter((v) => vis(v) > 0);
+      if (!vids.length) return "";
+      vids.sort((a, b) => (a.paused - b.paused) || (vis(b) - vis(a)));
+      const v = vids[0];
+      let n = v.parentElement, best = null;
+      while (n && n !== document.body && n.querySelectorAll("video").length === 1) {
+        if ((n.innerText || "").trim().length > 5) best = n;
+        n = n.parentElement;
+      }
+      if (!best) return "";
+      const skip = /^(public|reels|see more|see more on facebook|log in|follow|like|comment|share|more|\d[\d.,kKmM萬万]*)$/i;
+      const lines = [];
+      for (const l of best.innerText.split("\n").map((x) => x.trim()).filter(Boolean)) if (!lines.includes(l) && !skip.test(l)) lines.push(l);
+      const ai = lines.findIndex((l) => /^.{1,60}\s·\s/.test(l));
+      let author = "", body;
+      if (ai >= 0) { author = lines[ai].split(" · ")[0].trim(); body = lines.slice(0, ai).concat(lines.slice(ai + 1).filter((l) => l !== author)); }
+      else body = lines;
+      body = clip(body.join("\n").replace(/(…|\.\.\.)?\s*(查看更多|See more|更多)$/i, ""), 1200);
+      if (!body) return "";
+      return clip((author ? `作者：${author}\n` : "") + body, 1500);
+    } catch { return ""; }
+  }
+
   function rootMatchesUrl(root, url) {
     try {
       if (!root || !/(^|\.)facebook\.com$/.test(location.hostname)) return true;
@@ -139,6 +169,7 @@
     }
     let prefill = String(selection || "").trim();
     let note = "";
+    if (!prefill) prefill = fbReelText(url);
     if (!prefill) {
       const r = root || nearestPost(url);
       if (r && !rootMatchesUrl(r, url)) note = "未能自動抓取帖文文字（頁面內容同連結對唔上），請自行輸入";

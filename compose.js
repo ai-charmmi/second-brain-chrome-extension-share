@@ -129,14 +129,40 @@
         n = n.parentElement;
       }
       if (!best) return "";
-      const skip = /^(public|reels|see more|see more on facebook|log in|follow|like|comment|share|more|\d[\d.,kKmM萬万]*)$/i;
-      const lines = [];
-      for (const l of best.innerText.split("\n").map((x) => x.trim()).filter(Boolean)) if (!lines.includes(l) && !skip.test(l)) lines.push(l);
+      const noise = /^(public|reels|see more|see more on facebook|see less|see translation|hide translation|see original|log in|follow|like|comment|share|more|查看更多|查看翻譯|隱藏翻譯|顯示原文|查看原文|收起|更多|\d[\d.,kKmM萬万]*)$/i;
+      const tail = /\s*(…|\.{2,}|⋯)*\s*(查看更多|See more|更多)\s*$/i;
+      const clean = (text) => {
+        const out = [];
+        for (const raw of String(text).split("\n")) {
+          const l = raw.trim().replace(tail, "").trim();
+          if (l && !out.includes(l) && !noise.test(l)) out.push(l);
+        }
+        return out.filter((l) => !out.some((o) => o.length > l.length && o.startsWith(l)));
+      };
+      const lines = clean(best.innerText);
       const ai = lines.findIndex((l) => /^.{1,60}\s·\s/.test(l));
       let author = "", body;
-      if (ai >= 0) { author = lines[ai].split(" · ")[0].trim(); body = lines.slice(0, ai).concat(lines.slice(ai + 1).filter((l) => l !== author)); }
+      if (ai >= 0) { author = lines[ai].split(" · ")[0].trim(); body = lines.filter((l, i) => i !== ai && l !== author); }
       else body = lines;
-      body = clip(body.join("\n").replace(/(…|\.\.\.)?\s*(查看更多|See more|更多)$/i, ""), 1200);
+      const truncated = /(…|\.{2,}|⋯)\s*(查看更多|See more|更多)\s*$/im.test(best.innerText);
+      const first = body[0] ? body[0].replace(/\s+/g, " ") : "";
+      const prefix = first.slice(0, 24);
+      if (truncated && prefix.length >= 6) {
+        let full = "";
+        for (const el of document.querySelectorAll("div,span,p")) {
+          const tc = el.textContent || "";
+          if (tc.length <= full.length || tc.length > 4000 || tc.length < first.length) continue;
+          if (el.querySelector("video") || el.contains(v)) continue;
+          if (!tc.replace(/\s+/g, " ").trim().startsWith(prefix)) continue;
+          const t = (el.innerText || "").trim();
+          if (t.length > full.length) full = t;
+        }
+        if (full) {
+          const fl = clean(full).filter((l) => l !== author && !/^.{1,60}\s·\s/.test(l));
+          if (fl.join("").length > body.join("").length) body = fl;
+        }
+      }
+      body = clip(body.join("\n"), 1200);
       if (!body) return "";
       return clip((author ? `作者：${author}\n` : "") + body, 1500);
     } catch { return ""; }
